@@ -270,8 +270,8 @@
 </div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzOOEuaX99bGFzQ8q4jYiVd-zrH24cLDlUjvfosKCDmN3ICP_JLX9ilwbpr-QuzC8-reA/exec';
-const SUCS_KEY = 'dalton_sucs_v3';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwPMG7JbwvEGsL8HUt11KYUZK9MOG2qd8cHMuDziIPviHVpekSX_ZGEii3jTFFin-ceWA/exec';
+const SUCS_KEY = 'dalton_sucs_v4';
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MESES_L = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -304,34 +304,72 @@ function setStatus(txt, loading){
     : `<span style="color:var(--green-mid)">&#x2713;</span> ${txt}`;
 }
 
-async function cargarDeSheets(){
-  setStatus('Conectando con Google Sheets...', true);
+// ── Cargar sucursales desde hoja "sucursales" ──────────────────────────────
+async function cargarSucursalesDeSheets(){
   try {
-    const res = await fetch(SCRIPT_URL);
+    const res = await fetch(SCRIPT_URL + '?tipo=sucursales');
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const rows = await res.json();
+    if(rows && rows.length) {
+      SUCS = rows.map(r => ({
+        id:     String(r.id),
+        n:      r.nombre   || '',
+        rs:     r.razon_social || '',
+        region: r.region   || '',
+        kw:     parseFloat(r.kw)     || 60,
+        base:   parseInt(r.base)     || 9000,
+        tarifa: parseFloat(r.tarifa) || 2.65,
+      }));
+      saveSucs(SUCS); // cache local
+    } else {
+      // Si Sheets está vacío, usar las del localStorage o defaults
+      SUCS = loadSucs();
+    }
+  } catch(e) {
+    SUCS = loadSucs(); // fallback a local
+  }
+}
+
+// ── Cargar datos mensuales desde hoja "datos" ─────────────────────────────
+async function cargarDatosDeSheets(){
+  try {
+    const res = await fetch(SCRIPT_URL + '?tipo=datos');
     if(!res.ok) throw new Error('HTTP '+res.status);
     const rows = await res.json();
     data = {};
-    rows.forEach(r=>{
+    rows.forEach(r => {
       if(!r.sucursal_id || !r.periodo) return;
-      if(!data[r.sucursal_id]) data[r.sucursal_id]={};
+      if(!data[r.sucursal_id]) data[r.sucursal_id] = {};
       data[r.sucursal_id][r.periodo] = {
-        consumo:parseInt(r.consumo)||0, solar:parseInt(r.solar)||0,
-        pago:parseInt(r.pago)||0, real:true
+        consumo: parseInt(r.consumo) || 0,
+        solar:   parseInt(r.solar)   || 0,
+        pago:    parseInt(r.pago)    || 0,
+        real:    true
       };
     });
-    setStatus('Sincronizado con Google Sheets', false);
   } catch(e) {
-    setStatus('Sin conexión — mostrando estimados', false);
+    // mantener data vacío, mostrará estimados
   }
+}
+
+// ── Carga inicial (sucursales primero, luego datos) ───────────────────────
+async function cargarDeSheets(){
+  setStatus('Conectando con Google Sheets...', true);
+  await cargarSucursalesDeSheets();
+  await cargarDatosDeSheets();
+  setStatus('Sincronizado con Google Sheets', false);
   renderAll();
 }
 
+// ── Enviar filas a Sheets (no-cors para evitar bloqueo CORS en POST) ──────
 async function guardarEnSheets(filas){
-  await Promise.all(filas.map(f=>fetch(SCRIPT_URL,{
-    method:'POST', mode:'no-cors',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(f)
-  })));
+  await Promise.all(filas.map(f =>
+    fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(f)
+    })
+  ));
 }
 
 function genSolar(kw){ return Math.round(kw*5.0*30*0.80); }
@@ -463,7 +501,7 @@ async function guardar(){
     const pago=parseInt(document.getElementById('pi_'+s.id).value)||0;
     if(!data[s.id]) data[s.id]={};
     data[s.id][mk]={consumo,solar,pago,real:true};
-    filas.push({sucursal_id:s.id,periodo:mk,consumo,solar,pago,nombre:s.n||'',razon_social:s.rs||'',region:s.region||''});
+    filas.push({sucursal_id:s.id, periodo:mk, consumo, solar, pago});
   });
   try {
     await guardarEnSheets(filas);
@@ -534,7 +572,7 @@ function renderSucConfig(){
     </div>`).join('');
 }
 
-function guardarSucs(){
+async function guardarSucs(){
   SUCS = SUCS.map(s=>({
     ...s,
     n:      document.getElementById('sn_'+s.id).value.trim()||s.n,
@@ -546,34 +584,57 @@ function guardarSucs(){
   }));
   saveSucs(SUCS);
   const msg=document.getElementById('save-msg-suc');
-  msg.style.color='#27500A'; msg.textContent='Guardado correctamente';
+  msg.style.color='#27500A'; msg.textContent='Guardando en Sheets...';
   msg.style.display='inline';
-  setTimeout(()=>msg.style.display='none',2000);
+  try {
+    await Promise.all(SUCS.map(s => fetch(SCRIPT_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tipo:'sucursal', id:s.id, nombre:s.n, razon_social:s.rs,
+                            region:s.region, kw:s.kw, base:s.base, tarifa:s.tarifa})
+    })));
+    msg.textContent='Guardado en Google Sheets';
+  } catch(e) {
+    msg.style.color='#A32D2D'; msg.textContent='Error al guardar';
+  }
+  setTimeout(()=>msg.style.display='none',3000);
   renderAll();
   renderSucConfig();
 }
 
-function agregarSucursal(){
+async function agregarSucursal(){
   const n = document.getElementById('new-n').value.trim();
   if(!n){ alert('El nombre comercial es obligatorio.'); return; }
   const newId = 'suc-'+Date.now();
-  SUCS.push({
-    id: newId,
-    n,
+  const nueva = {
+    id: newId, n,
     rs:     document.getElementById('new-rs').value.trim(),
     region: document.getElementById('new-reg').value.trim(),
     kw:     parseFloat(document.getElementById('new-kw').value)||60,
     base:   parseInt(document.getElementById('new-base').value)||9000,
     tarifa: parseFloat(document.getElementById('new-tarifa').value)||2.65,
-  });
+  };
+  SUCS.push(nueva);
   saveSucs(SUCS);
+  const msg=document.getElementById('save-msg-add');
+  msg.style.color='#27500A'; msg.textContent='Guardando en Sheets...';
+  msg.style.display='inline';
+  try {
+    await fetch(SCRIPT_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tipo:'sucursal', id:nueva.id, nombre:nueva.n,
+                            razon_social:nueva.rs, region:nueva.region,
+                            kw:nueva.kw, base:nueva.base, tarifa:nueva.tarifa})
+    });
+    msg.textContent=`"${n}" guardada en Google Sheets`;
+  } catch(e) {
+    msg.style.color='#A32D2D'; msg.textContent='Agregada localmente (error Sheets)';
+  }
   ['new-n','new-rs','new-reg'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('new-kw').value=60;
   document.getElementById('new-base').value=9000;
-  const msg=document.getElementById('save-msg-add');
-  msg.style.color='#27500A'; msg.textContent=`"${n}" agregada`;
-  msg.style.display='inline';
-  setTimeout(()=>msg.style.display='none',2500);
+  setTimeout(()=>msg.style.display='none',3000);
   renderAll();
   renderSucConfig();
 }
@@ -589,12 +650,20 @@ function cerrarModal(){
   document.getElementById('modal-eliminar').classList.remove('open');
 }
 
-function confirmarEliminar(){
+async function confirmarEliminar(){
   if(!sucAEliminar) return;
-  SUCS = SUCS.filter(s=>s.id!==sucAEliminar);
-  delete data[sucAEliminar];
+  const idEliminar = sucAEliminar;
+  SUCS = SUCS.filter(s=>s.id!==idEliminar);
+  delete data[idEliminar];
   saveSucs(SUCS);
   cerrarModal();
+  try {
+    await fetch(SCRIPT_URL, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tipo:'eliminar_sucursal', id:idEliminar})
+    });
+  } catch(e) { /* eliminada localmente aunque falle Sheets */ }
   renderAll();
   renderSucConfig();
 }
