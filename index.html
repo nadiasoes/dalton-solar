@@ -270,22 +270,22 @@
 </div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwPMG7JbwvEGsL8HUt11KYUZK9MOG2qd8cHMuDziIPviHVpekSX_ZGEii3jTFFin-ceWA/exec';
-const SUCS_KEY = 'dalton_sucs_v4';
-const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-const MESES_L = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_vYHTmf_ISiPUlzqf9YNnr3Ulq1zZQGLcD54X1zJb5-60LTh1UPCe8pahd9Wh6NHaEA/exec';
+const SUCS_KEY  = 'dalton_sucs_v4';
+const MESES     = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MESES_L   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 const SUCS_DEFAULT = [
-  {id:'slp-eco', n:'SLP Ecomobility', rs:'Dalton Ecomobility SLP SA CV L', region:'San Luis Potosí', kw:72.4, base:10640, tarifa:2.73},
-  {id:'slp-asi', n:'SLP Asiáticos',   rs:'Dalton Autos Asiáticos SLP SA CV L', region:'San Luis Potosí', kw:76.8, base:10100, tarifa:2.65},
-  {id:'suc-03',  n:'Sucursal 3',      rs:'', region:'', kw:60,   base:8500,  tarifa:2.65},
-  {id:'suc-04',  n:'Sucursal 4',      rs:'', region:'', kw:55,   base:7800,  tarifa:2.65},
-  {id:'suc-05',  n:'Sucursal 5',      rs:'', region:'', kw:80,   base:11000, tarifa:2.65},
-  {id:'suc-06',  n:'Sucursal 6',      rs:'', region:'', kw:65,   base:9200,  tarifa:2.65},
-  {id:'suc-07',  n:'Sucursal 7',      rs:'', region:'', kw:70,   base:9800,  tarifa:2.65},
-  {id:'suc-08',  n:'Sucursal 8',      rs:'', region:'', kw:58,   base:8200,  tarifa:2.65},
-  {id:'suc-09',  n:'Sucursal 9',      rs:'', region:'', kw:75,   base:10400, tarifa:2.65},
-  {id:'suc-10',  n:'Sucursal 10',     rs:'', region:'', kw:68,   base:9600,  tarifa:2.65},
+  {id:'slp-eco', n:'SLP Ecomobility', rs:'Dalton Ecomobility SLP SA CV L',      region:'San Luis Potosí', kw:72.4, base:10640, tarifa:2.73},
+  {id:'slp-asi', n:'SLP Asiáticos',   rs:'Dalton Autos Asiáticos SLP SA CV L',  region:'San Luis Potosí', kw:76.8, base:10100, tarifa:2.65},
+  {id:'suc-03',  n:'Sucursal 3',      rs:'', region:'', kw:60,  base:8500,  tarifa:2.65},
+  {id:'suc-04',  n:'Sucursal 4',      rs:'', region:'', kw:55,  base:7800,  tarifa:2.65},
+  {id:'suc-05',  n:'Sucursal 5',      rs:'', region:'', kw:80,  base:11000, tarifa:2.65},
+  {id:'suc-06',  n:'Sucursal 6',      rs:'', region:'', kw:65,  base:9200,  tarifa:2.65},
+  {id:'suc-07',  n:'Sucursal 7',      rs:'', region:'', kw:70,  base:9800,  tarifa:2.65},
+  {id:'suc-08',  n:'Sucursal 8',      rs:'', region:'', kw:58,  base:8200,  tarifa:2.65},
+  {id:'suc-09',  n:'Sucursal 9',      rs:'', region:'', kw:75,  base:10400, tarifa:2.65},
+  {id:'suc-10',  n:'Sucursal 10',     rs:'', region:'', kw:68,  base:9600,  tarifa:2.65},
 ];
 
 function loadSucs(){ try{ const r=JSON.parse(localStorage.getItem(SUCS_KEY)); return r&&r.length?r:SUCS_DEFAULT; }catch(e){return SUCS_DEFAULT;} }
@@ -296,6 +296,7 @@ let data = {};
 let charts = {};
 let sucAEliminar = null;
 
+// ── Status bar ────────────────────────────────────────────────────────────
 function setStatus(txt, loading){
   const el = document.getElementById('sync-status');
   if(!el) return;
@@ -304,38 +305,39 @@ function setStatus(txt, loading){
     : `<span style="color:var(--green-mid)">&#x2713;</span> ${txt}`;
 }
 
-// ── Cargar sucursales desde hoja "sucursales" ──────────────────────────────
+// ── API: GET con parámetros (evita CORS) ──────────────────────────────────
+async function apiGet(params){
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(SCRIPT_URL + '?' + qs);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// ── Cargar sucursales desde hoja "sucursales" ─────────────────────────────
 async function cargarSucursalesDeSheets(){
   try {
-    const res = await fetch(SCRIPT_URL + '?tipo=sucursales');
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const rows = await res.json();
-    if(rows && rows.length) {
+    const rows = await apiGet({tipo:'sucursales'});
+    if(rows && rows.length){
       SUCS = rows.map(r => ({
         id:     String(r.id),
-        n:      r.nombre   || '',
-        rs:     r.razon_social || '',
-        region: r.region   || '',
+        n:      r.nombre        || '',
+        rs:     r.razon_social  || '',
+        region: r.region        || '',
         kw:     parseFloat(r.kw)     || 60,
         base:   parseInt(r.base)     || 9000,
         tarifa: parseFloat(r.tarifa) || 2.65,
       }));
-      saveSucs(SUCS); // cache local
+      saveSucs(SUCS);
     } else {
-      // Si Sheets está vacío, usar las del localStorage o defaults
       SUCS = loadSucs();
     }
-  } catch(e) {
-    SUCS = loadSucs(); // fallback a local
-  }
+  } catch(e){ SUCS = loadSucs(); }
 }
 
 // ── Cargar datos mensuales desde hoja "datos" ─────────────────────────────
 async function cargarDatosDeSheets(){
   try {
-    const res = await fetch(SCRIPT_URL + '?tipo=datos');
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const rows = await res.json();
+    const rows = await apiGet({tipo:'datos'});
     data = {};
     rows.forEach(r => {
       if(!r.sucursal_id || !r.periodo) return;
@@ -344,15 +346,13 @@ async function cargarDatosDeSheets(){
         consumo: parseInt(r.consumo) || 0,
         solar:   parseInt(r.solar)   || 0,
         pago:    parseInt(r.pago)    || 0,
-        real:    true
+        real: true
       };
     });
-  } catch(e) {
-    // mantener data vacío, mostrará estimados
-  }
+  } catch(e){ /* usa estimados */ }
 }
 
-// ── Carga inicial (sucursales primero, luego datos) ───────────────────────
+// ── Carga inicial ─────────────────────────────────────────────────────────
 async function cargarDeSheets(){
   setStatus('Conectando con Google Sheets...', true);
   await cargarSucursalesDeSheets();
@@ -361,17 +361,7 @@ async function cargarDeSheets(){
   renderAll();
 }
 
-// ── Enviar filas a Sheets (no-cors para evitar bloqueo CORS en POST) ──────
-async function guardarEnSheets(filas){
-  await Promise.all(filas.map(f =>
-    fetch(SCRIPT_URL, {
-      method: 'POST', mode: 'no-cors',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(f)
-    })
-  ));
-}
-
+// ── Helpers ───────────────────────────────────────────────────────────────
 function genSolar(kw){ return Math.round(kw*5.0*30*0.80); }
 function defDato(s){ return {consumo:s.base, solar:genSolar(s.kw), pago:Math.round(s.base*s.tarifa*0.13), real:false}; }
 function mesKey(){ return document.getElementById('sel-año').value+'-'+String(parseInt(document.getElementById('sel-mes').value)+1).padStart(2,'0'); }
@@ -388,6 +378,7 @@ function eficBadge(e){
 function fmt(n){ return n.toLocaleString('es-MX'); }
 function fmtP(n){ return '$'+n.toLocaleString('es-MX'); }
 
+// ── Render resumen ────────────────────────────────────────────────────────
 function renderAll(){
   const mk = mesKey();
   let totC=0,totS=0,totP=0,totA=0;
@@ -402,13 +393,10 @@ function renderAll(){
     const bc = eficColor(efic);
     const est = !d.real?'<span class="est-tag">est.</span>':'';
     const regionBadge = s.region?`<span class="badge-region">${s.region}</span>`:'';
-    if(efic<70&&d.real) alertas.push({t:'bad',msg:`<strong>${s.n}</strong>: eficiencia crítica ${efic}% — revisar inversor o paneles.`});
-    else if(efic<85&&d.real) alertas.push({t:'warn',msg:`<strong>${s.n}</strong>: eficiencia baja ${efic}% — posible suciedad o nublado.`});
+    if(efic<70&&d.real) alertas.push({t:'bad', msg:`<strong>${s.n}</strong>: eficiencia crítica ${efic}% — revisar inversor o paneles.`});
+    else if(efic<85&&d.real) alertas.push({t:'warn', msg:`<strong>${s.n}</strong>: eficiencia baja ${efic}% — posible suciedad o nublado.`});
     return `<tr>
-      <td>
-        <div class="suc-name">${s.n}${est}</div>
-        ${s.rs?`<div class="suc-sub">${s.rs}</div>`:''}
-      </td>
+      <td><div class="suc-name">${s.n}${est}</div>${s.rs?`<div class="suc-sub">${s.rs}</div>`:''}</td>
       <td class="hide-mobile">${regionBadge}</td>
       <td class="hide-mobile">${fmt(d.consumo)}</td>
       <td class="hide-mobile">${fmt(d.solar)}</td>
@@ -444,6 +432,7 @@ function renderAll(){
     `<div class="alert alert-${a.t}">${a.msg}</div>`).join('');
 }
 
+// ── Render gráficas ───────────────────────────────────────────────────────
 function renderCharts(){
   const mk = mesKey();
   const nombres = SUCS.map(s=>s.n);
@@ -472,6 +461,7 @@ function renderCharts(){
   });
 }
 
+// ── Render captura ────────────────────────────────────────────────────────
 function renderCaptura(){
   const mk = mesKey();
   document.getElementById('captura-grid').innerHTML = SUCS.map(s=>{
@@ -488,39 +478,42 @@ function renderCaptura(){
   }).join('');
 }
 
+// ── Guardar datos mensuales ───────────────────────────────────────────────
 async function guardar(){
   const mk = mesKey();
   const btn = document.getElementById('btn-save');
   const msg = document.getElementById('save-msg');
   btn.disabled=true; btn.textContent='Guardando...';
-  setStatus('Guardando datos...', true);
-  const filas=[];
-  SUCS.forEach(s=>{
-    const consumo=parseInt(document.getElementById('ci_'+s.id).value)||0;
-    const solar=parseInt(document.getElementById('gi_'+s.id).value)||0;
-    const pago=parseInt(document.getElementById('pi_'+s.id).value)||0;
-    if(!data[s.id]) data[s.id]={};
-    data[s.id][mk]={consumo,solar,pago,real:true};
-    filas.push({sucursal_id:s.id, periodo:mk, consumo, solar, pago});
-  });
+  setStatus('Guardando datos mensuales...', true);
+
   try {
-    await guardarEnSheets(filas);
+    const promises = SUCS.map(async s => {
+      const consumo = parseInt(document.getElementById('ci_'+s.id).value)||0;
+      const solar   = parseInt(document.getElementById('gi_'+s.id).value)||0;
+      const pago    = parseInt(document.getElementById('pi_'+s.id).value)||0;
+      if(!data[s.id]) data[s.id]={};
+      data[s.id][mk] = {consumo, solar, pago, real:true};
+      return apiGet({tipo:'guardar_dato', sucursal_id:s.id, periodo:mk, consumo, solar, pago});
+    });
+    await Promise.all(promises);
     msg.style.color='#27500A'; msg.textContent='Guardado en Google Sheets';
     setStatus('Sincronizado con Google Sheets', false);
-  } catch(e) {
+  } catch(e){
     msg.style.color='#A32D2D'; msg.textContent='Error de conexión';
     setStatus('Error de conexión', false);
   }
+
   msg.style.display='inline';
   setTimeout(()=>{ msg.style.display='none'; btn.disabled=false; btn.textContent='Guardar en Google Sheets'; },3000);
   showView('resumen', document.querySelector('.nav-btn'));
   renderAll();
 }
 
+// ── Render historial ──────────────────────────────────────────────────────
 function renderHistorial(){
-  const sucId=document.getElementById('hist-suc').value;
-  const año=document.getElementById('hist-año').value;
-  const suc=SUCS.find(s=>s.id===sucId);
+  const sucId = document.getElementById('hist-suc').value;
+  const año   = document.getElementById('hist-año').value;
+  const suc   = SUCS.find(s=>s.id===sucId);
   if(!suc) return;
   document.getElementById('hist-title').textContent=`Historial ${año} — ${suc.n}`;
   const efics=[],ahorros=[],pagos=[];
@@ -554,6 +547,7 @@ function renderHistorial(){
   });
 }
 
+// ── Render config sucursales ──────────────────────────────────────────────
 function renderSucConfig(){
   document.getElementById('suc-list').innerHTML = SUCS.map((s,i)=>`
     <div class="suc-config-card">
@@ -562,16 +556,17 @@ function renderSucConfig(){
         <button class="btn-danger" onclick="pedirEliminar('${s.id}','${s.n}')">Eliminar</button>
       </div>
       <div class="suc-config-grid">
-        <div class="field"><label>Nombre comercial *</label><input type="text" id="sn_${s.id}" value="${s.n||''}"></div>
-        <div class="field"><label>Razón social</label><input type="text" id="sr_${s.id}" value="${s.rs||''}"></div>
-        <div class="field"><label>Región</label><input type="text" id="sreg_${s.id}" value="${s.region||''}"></div>
-        <div class="field"><label>kW instalados</label><input type="number" id="sk_${s.id}" value="${s.kw}" min="1" step="0.1"></div>
+        <div class="field"><label>Nombre comercial *</label><input type="text"   id="sn_${s.id}"   value="${s.n||''}"></div>
+        <div class="field"><label>Razón social</label>      <input type="text"   id="sr_${s.id}"   value="${s.rs||''}"></div>
+        <div class="field"><label>Región</label>            <input type="text"   id="sreg_${s.id}" value="${s.region||''}"></div>
+        <div class="field"><label>kW instalados</label>     <input type="number" id="sk_${s.id}"   value="${s.kw}"  min="1" step="0.1"></div>
         <div class="field"><label>Consumo base (kWh/mes)</label><input type="number" id="sb_${s.id}" value="${s.base}" min="100" step="100"></div>
-        <div class="field"><label>Tarifa ref. ($/kWh)</label><input type="number" id="st_${s.id}" value="${s.tarifa}" min="1" step="0.01"></div>
+        <div class="field"><label>Tarifa ref. ($/kWh)</label>   <input type="number" id="st_${s.id}" value="${s.tarifa}" min="1" step="0.01"></div>
       </div>
     </div>`).join('');
 }
 
+// ── Guardar cambios en sucursales existentes ──────────────────────────────
 async function guardarSucs(){
   SUCS = SUCS.map(s=>({
     ...s,
@@ -583,31 +578,31 @@ async function guardarSucs(){
     tarifa: parseFloat(document.getElementById('st_'+s.id).value)||s.tarifa,
   }));
   saveSucs(SUCS);
-  const msg=document.getElementById('save-msg-suc');
+  const msg = document.getElementById('save-msg-suc');
   msg.style.color='#27500A'; msg.textContent='Guardando en Sheets...';
   msg.style.display='inline';
   try {
-    await Promise.all(SUCS.map(s => fetch(SCRIPT_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({tipo:'sucursal', id:s.id, nombre:s.n, razon_social:s.rs,
-                            region:s.region, kw:s.kw, base:s.base, tarifa:s.tarifa})
+    await Promise.all(SUCS.map(s => apiGet({
+      tipo:'guardar_sucursal', id:s.id, nombre:s.n,
+      razon_social:s.rs, region:s.region,
+      kw:s.kw, base:s.base, tarifa:s.tarifa
     })));
     msg.textContent='Guardado en Google Sheets';
-  } catch(e) {
-    msg.style.color='#A32D2D'; msg.textContent='Error al guardar';
+  } catch(e){
+    msg.style.color='#A32D2D'; msg.textContent='Error al guardar en Sheets';
   }
   setTimeout(()=>msg.style.display='none',3000);
   renderAll();
   renderSucConfig();
 }
 
+// ── Agregar nueva sucursal ────────────────────────────────────────────────
 async function agregarSucursal(){
   const n = document.getElementById('new-n').value.trim();
   if(!n){ alert('El nombre comercial es obligatorio.'); return; }
-  const newId = 'suc-'+Date.now();
   const nueva = {
-    id: newId, n,
+    id:     'suc-'+Date.now(),
+    n,
     rs:     document.getElementById('new-rs').value.trim(),
     region: document.getElementById('new-reg').value.trim(),
     kw:     parseFloat(document.getElementById('new-kw').value)||60,
@@ -616,19 +611,17 @@ async function agregarSucursal(){
   };
   SUCS.push(nueva);
   saveSucs(SUCS);
-  const msg=document.getElementById('save-msg-add');
+  const msg = document.getElementById('save-msg-add');
   msg.style.color='#27500A'; msg.textContent='Guardando en Sheets...';
   msg.style.display='inline';
   try {
-    await fetch(SCRIPT_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({tipo:'sucursal', id:nueva.id, nombre:nueva.n,
-                            razon_social:nueva.rs, region:nueva.region,
-                            kw:nueva.kw, base:nueva.base, tarifa:nueva.tarifa})
+    await apiGet({
+      tipo:'guardar_sucursal', id:nueva.id, nombre:nueva.n,
+      razon_social:nueva.rs, region:nueva.region,
+      kw:nueva.kw, base:nueva.base, tarifa:nueva.tarifa
     });
     msg.textContent=`"${n}" guardada en Google Sheets`;
-  } catch(e) {
+  } catch(e){
     msg.style.color='#A32D2D'; msg.textContent='Agregada localmente (error Sheets)';
   }
   ['new-n','new-rs','new-reg'].forEach(id=>document.getElementById(id).value='');
@@ -639,35 +632,31 @@ async function agregarSucursal(){
   renderSucConfig();
 }
 
+// ── Modal eliminar ────────────────────────────────────────────────────────
 function pedirEliminar(id, nombre){
   sucAEliminar = id;
-  document.getElementById('modal-msg').textContent = `¿Eliminar "${nombre}"? Esta acción no se puede deshacer y borrará sus datos locales.`;
+  document.getElementById('modal-msg').textContent=`¿Eliminar "${nombre}"? Esta acción no se puede deshacer.`;
   document.getElementById('modal-eliminar').classList.add('open');
 }
-
 function cerrarModal(){
-  sucAEliminar = null;
+  sucAEliminar=null;
   document.getElementById('modal-eliminar').classList.remove('open');
 }
-
 async function confirmarEliminar(){
   if(!sucAEliminar) return;
-  const idEliminar = sucAEliminar;
-  SUCS = SUCS.filter(s=>s.id!==idEliminar);
-  delete data[idEliminar];
+  const id = sucAEliminar;
+  SUCS = SUCS.filter(s=>s.id!==id);
+  delete data[id];
   saveSucs(SUCS);
   cerrarModal();
   try {
-    await fetch(SCRIPT_URL, {
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({tipo:'eliminar_sucursal', id:idEliminar})
-    });
-  } catch(e) { /* eliminada localmente aunque falle Sheets */ }
+    await apiGet({tipo:'eliminar_sucursal', id});
+  } catch(e){ /* eliminada localmente */ }
   renderAll();
   renderSucConfig();
 }
 
+// ── Navegación ────────────────────────────────────────────────────────────
 function showView(v, btn){
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
