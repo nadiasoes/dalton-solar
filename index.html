@@ -129,6 +129,9 @@
     .hide-mobile { display: none; }
     th, td { padding: 9px 10px; }
   }
+  .spin { display:inline-block;width:12px;height:12px;border:2px solid var(--gray-200);border-top-color:var(--gray-400);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:4px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #sync-status { font-size:12px;color:var(--gray-400);display:flex;align-items:center;gap:4px; }
 </style>
 </head>
 <body>
@@ -144,6 +147,7 @@
     </div>
   </div>
   <div class="header-right">
+    <span id="sync-status"><span class="spin"></span>Cargando...</span>
     <div class="periodo-sel">
       <select id="sel-mes">
         <option value="0">Enero</option><option value="1">Febrero</option><option value="2">Marzo</option>
@@ -154,6 +158,7 @@
       <select id="sel-año">
         <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
       </select>
+    </div>
     </div>
   </div>
 </header>
@@ -289,14 +294,61 @@ const SUCS_DEFAULT = [
   {id:'suc-10',  n:'Sucursal 10',     kw:68,   base:9600,  tarifa:2.65},
 ];
 
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzv4TtQRA_4PUKzFqUl5GzaVzGFAIH5tolzoMpJD33w21YxVqIMmgx_aX0S6wn1nuQAUQ/exec';
+
 function loadSucs(){ try{ const r=JSON.parse(localStorage.getItem(SUCS_KEY)); return r&&r.length?r:SUCS_DEFAULT; }catch(e){return SUCS_DEFAULT;} }
 function saveSucs(s){ localStorage.setItem(SUCS_KEY, JSON.stringify(s)); }
-function loadData(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY))||{}; }catch(e){return {};} }
-function saveData(d){ localStorage.setItem(STORE_KEY, JSON.stringify(d)); }
 
 let SUCS = loadSucs();
-let data = loadData();
+let data = {};
 let charts = {};
+let sheetsOnline = false;
+
+function setStatus(txt, loading){
+  const el = document.getElementById('sync-status');
+  if(!el) return;
+  el.innerHTML = loading
+    ? `<span class="spin"></span>${txt}`
+    : `<span style="color:var(--green-mid)">&#x2713;</span> ${txt}`;
+}
+
+async function cargarDeSheets(){
+  setStatus('Conectando con Google Sheets...', true);
+  try {
+    const res = await fetch(SCRIPT_URL);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const rows = await res.json();
+    data = {};
+    rows.forEach(r=>{
+      if(!r.sucursal_id || !r.periodo) return;
+      if(!data[r.sucursal_id]) data[r.sucursal_id] = {};
+      data[r.sucursal_id][r.periodo] = {
+        consumo: parseInt(r.consumo)||0,
+        solar:   parseInt(r.solar)||0,
+        pago:    parseInt(r.pago)||0,
+        real:    true
+      };
+    });
+    sheetsOnline = true;
+    setStatus('Sincronizado con Google Sheets', false);
+  } catch(e) {
+    sheetsOnline = false;
+    setStatus('Sin conexión — mostrando estimados', false);
+  }
+  renderAll();
+}
+
+async function guardarEnSheets(filas){
+  const promises = filas.map(f =>
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(f)
+    })
+  );
+  await Promise.all(promises);
+}
 
 function genSolar(kw){ return Math.round(kw*5.0*30*0.80); }
 function defDato(s){ return {consumo:s.base, solar:genSolar(s.kw), pago:Math.round(s.base*s.tarifa*0.13), real:false}; }
@@ -414,22 +466,37 @@ function renderCaptura(){
   }).join('');
 }
 
-function guardar(){
+async function guardar(){
   const mk = mesKey();
   const btn = document.getElementById('btn-save');
+  const msg = document.getElementById('save-msg');
   btn.disabled = true;
-  btn.textContent = 'Guardando...';
+  btn.textContent = 'Guardando en Sheets...';
+  setStatus('Guardando datos...', true);
+
+  const filas = [];
   SUCS.forEach(s=>{
     const consumo = parseInt(document.getElementById('ci_'+s.id).value)||0;
     const solar   = parseInt(document.getElementById('gi_'+s.id).value)||0;
     const pago    = parseInt(document.getElementById('pi_'+s.id).value)||0;
     if(!data[s.id]) data[s.id]={};
     data[s.id][mk] = {consumo, solar, pago, real:true};
+    filas.push({sucursal_id:s.id, periodo:mk, consumo, solar, pago});
   });
-  saveData(data);
-  const msg = document.getElementById('save-msg');
-  msg.style.display='inline';
-  setTimeout(()=>{ msg.style.display='none'; btn.disabled=false; btn.textContent='Guardar periodo'; },2000);
+
+  try {
+    await guardarEnSheets(filas);
+    msg.style.color = '#27500A';
+    msg.textContent = 'Guardado en Google Sheets';
+    setStatus('Sincronizado con Google Sheets', false);
+  } catch(e) {
+    msg.style.color = '#A32D2D';
+    msg.textContent = 'Error al guardar — revisa la conexión';
+    setStatus('Error de conexión', false);
+  }
+
+  msg.style.display = 'inline';
+  setTimeout(()=>{ msg.style.display='none'; btn.disabled=false; btn.textContent='Guardar periodo'; }, 3000);
   showView('resumen', document.querySelector('.nav-btn'));
   renderAll();
 }
@@ -517,7 +584,8 @@ document.getElementById('sel-año').addEventListener('change', ()=>{ renderAll()
 const now = new Date();
 document.getElementById('sel-mes').value = now.getMonth();
 document.getElementById('sel-año').value = now.getFullYear() >= 2025 && now.getFullYear() <= 2028 ? now.getFullYear() : 2026;
-renderAll();
+
+cargarDeSheets();
 </script>
 </body>
 </html>
