@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eficiencia Solar — Grupo Dalton</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --green-dark: #0F6E56;
+    --green-mid: #1D9E75;
+    --green-light: #5DCAA5;
+    --green-bg: #EAF3DE;
+    --green-text: #27500A;
+    --amber-bg: #FAEEDA;
+    --amber-text: #633806;
+    --red-bg: #FCEBEB;
+    --red-text: #791F1F;
+    --blue-light: #85B7EB;
+    --blue-bg: #E6F1FB;
+    --gray-100: #f5f5f3;
+    --gray-200: #e8e8e4;
+    --gray-400: #9a9a94;
+    --gray-700: #3a3a38;
+    --gray-900: #1a1a18;
+    --white: #ffffff;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--gray-100); color: var(--gray-900); font-size: 14px; line-height: 1.5; }
+  
+  /* Header */
+  header { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 32px; height: 32px; background: var(--green-mid); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+  .logo-icon svg { width: 18px; height: 18px; fill: none; stroke: white; stroke-width: 2; }
+  .logo-name { font-size: 15px; font-weight: 600; color: var(--gray-900); }
+  .logo-sub { font-size: 12px; color: var(--gray-400); margin-top: -2px; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .periodo-sel { display: flex; gap: 6px; }
+  select { font-size: 13px; padding: 6px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); background: var(--white); color: var(--gray-900); cursor: pointer; outline: none; }
+  select:focus { border-color: var(--green-mid); }
+
+  /* Nav tabs */
+  nav { background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 0 24px; display: flex; gap: 2px; }
+  .nav-btn { font-size: 13px; padding: 12px 16px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--gray-400); cursor: pointer; font-weight: 500; transition: color 0.15s, border-color 0.15s; white-space: nowrap; }
+  .nav-btn:hover { color: var(--gray-900); }
+  .nav-btn.active { color: var(--green-dark); border-bottom-color: var(--green-mid); }
+
+  /* Main */
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 24px 48px; }
+
+  /* KPI cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .kpi { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 16px; }
+  .kpi-label { font-size: 11px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .kpi-val { font-size: 22px; font-weight: 600; color: var(--gray-900); }
+  .kpi-val.green { color: var(--green-dark); }
+  .kpi-val.amber { color: #854F0B; }
+  .kpi-val.red { color: #A32D2D; }
+  .kpi-sub { font-size: 11px; color: var(--gray-400); margin-top: 3px; }
+
+  /* Table */
+  .table-wrap { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gray-400); font-weight: 600; padding: 10px 14px; text-align: left; background: var(--gray-100); border-bottom: 1px solid var(--gray-200); }
+  td { padding: 11px 14px; font-size: 13px; border-bottom: 1px solid var(--gray-200); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafafa; }
+  .suc-name { font-weight: 500; color: var(--gray-900); }
+  .est-tag { font-size: 10px; color: var(--gray-400); font-weight: 400; margin-left: 4px; }
+
+  /* Badge */
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+  .badge-ok { background: var(--green-bg); color: var(--green-text); }
+  .badge-warn { background: var(--amber-bg); color: var(--amber-text); }
+  .badge-bad { background: var(--red-bg); color: var(--red-text); }
+
+  /* Bar */
+  .bar-wrap { width: 80px; height: 6px; background: var(--gray-200); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+
+  /* Chart section */
+  .chart-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 16px; }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 14px; }
+  .chart-legend { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--gray-400); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Captura */
+  .captura-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .captura-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-md); padding: 16px; }
+  .captura-card-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+  .captura-card-name { font-size: 14px; font-weight: 600; }
+  .captura-card-kw { font-size: 11px; color: var(--gray-400); }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .field input { width: 100%; padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; color: var(--gray-900); background: var(--white); outline: none; transition: border-color 0.15s; }
+  .field input:focus { border-color: var(--green-mid); }
+  .save-bar { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--gray-200); }
+  .btn-primary { background: var(--green-mid); color: white; border: none; border-radius: var(--radius-sm); padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  .btn-primary:hover { background: var(--green-dark); }
+  .btn-primary:disabled { background: var(--gray-200); color: var(--gray-400); cursor: not-allowed; }
+  .save-msg { font-size: 13px; color: var(--green-dark); font-weight: 500; display: none; }
+
+  /* Historial */
+  .hist-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .hist-controls label { font-size: 13px; color: var(--gray-400); }
+
+  /* View toggle */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Totals row */
+  .totals-row td { font-weight: 600; background: var(--gray-100); border-top: 2px solid var(--gray-200); }
+
+  /* Alert banner */
+  .alerts { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .alert { padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .alert-warn { background: var(--amber-bg); color: var(--amber-text); border-left: 3px solid #EF9F27; border-radius: 0; }
+  .alert-bad  { background: var(--red-bg);   color: var(--red-text);   border-left: 3px solid #E24B4A; border-radius: 0; }
+
+  @media (max-width: 640px) {
+    header { padding: 0 14px; }
+    main { padding: 16px 14px 48px; }
+    nav { padding: 0 14px; overflow-x: auto; }
+    .hide-mobile { display: none; }
+    th, td { padding: 9px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>
+    </div>
+    <div>
+      <div class="logo-name">Grupo Dalton</div>
+      <div class="logo-sub">Monitoreo solar</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="periodo-sel">
+      <select id="sel-mes">
+        <option value="0">Enero</option><option value="1">Febrero</option><option value="2">Marzo</option>
+        <option value="3">Abril</option><option value="4">Mayo</option><option value="5">Junio</option>
+        <option value="6">Julio</option><option value="7">Agosto</option><option value="8">Septiembre</option>
+        <option value="9">Octubre</option><option value="10">Noviembre</option><option value="11">Diciembre</option>
+      </select>
+      <select id="sel-año">
+        <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <button class="nav-btn active" onclick="showView('resumen',this)">Resumen</button>
+  <button class="nav-btn" onclick="showView('graficas',this)">Gráficas</button>
+  <button class="nav-btn" onclick="showView('captura',this)">Capturar datos</button>
+  <button class="nav-btn" onclick="showView('historial',this)">Historial</button>
+  <button class="nav-btn" onclick="showView('sucursales',this)">Sucursales</button>
+</nav>
+
+<main>
+
+  <!-- KPIs -->
+  <div class="kpi-grid" id="kpis"></div>
+
+  <!-- Alertas -->
+  <div class="alerts" id="alertas"></div>
+
+  <!-- Resumen -->
+  <div class="view active" id="view-resumen">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:160px">Sucursal</th>
+            <th class="hide-mobile">Consumo (kWh)</th>
+            <th class="hide-mobile">Generación (kWh)</th>
+            <th>Pago CFE</th>
+            <th class="hide-mobile">Ahorro est.</th>
+            <th style="width:100px">Eficiencia</th>
+            <th style="width:76px">Estado</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot><tr class="totals-row" id="tfoot"></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gráficas -->
+  <div class="view" id="view-graficas">
+    <div class="chart-card">
+      <div class="chart-title">Consumo CFE vs generación solar por sucursal</div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#5DCAA5"></div>Generación solar</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#85B7EB"></div>Consumo CFE</div>
+      </div>
+      <div style="position:relative;height:260px"><canvas id="cBar" role="img" aria-label="Consumo vs generación por sucursal">Gráfica comparativa.</canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Eficiencia % por sucursal — verde ≥85%, amarillo ≥70%, rojo &lt;70%</div>
+      <div style="position:relative;height:200px"><canvas id="cEfic" role="img" aria-label="Eficiencia por sucursal">Gráfica de eficiencia.</canvas></div>
+    </div>
+  </div>
+
+  <!-- Captura -->
+  <div class="view" id="view-captura">
+    <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px">Ingresa los datos del recibo CFE y del inversor Growatt de cada sucursal para el periodo seleccionado. Los valores precargados son estimados.</p>
+    <div class="captura-grid" id="captura-grid"></div>
+    <div class="save-bar">
+      <button class="btn-primary" id="btn-save" onclick="guardar()">Guardar periodo</button>
+      <span class="save-msg" id="save-msg">Guardado correctamente</span>
+    </div>
+  </div>
+
+  <!-- Historial -->
+  <div class="view" id="view-historial">
+    <div class="hist-controls">
+      <label>Sucursal:</label>
+      <select id="hist-suc" onchange="renderHistorial()"></select>
+      <label>Año:</label>
+      <select id="hist-año" onchange="renderHistorial()">
+        <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
+      </select>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title" id="hist-title">Historial anual</div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div>Eficiencia %</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#B5D4F4"></div>Ahorro mensual ($MXN)</div>
+      </div>
+      <div style="position:relative;height:260px"><canvas id="cHist" role="img" aria-label="Historial anual de eficiencia">Historial anual.</canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Tendencia de pago CFE mensual</div>
+      <div style="position:relative;height:200px"><canvas id="cPago" role="img" aria-label="Tendencia de pago CFE">Pago CFE.</canvas></div>
+    </div>
+  </div>
+
+  <!-- Sucursales -->
+  <div class="view" id="view-sucursales">
+    <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px">Configura los datos base de cada sucursal. Estos valores se usan para calcular estimados cuando no hay datos reales capturados.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:48px">#</th>
+            <th>Nombre de la sucursal</th>
+            <th>kW instalados</th>
+            <th>Consumo base (kWh/mes)</th>
+            <th>Tarifa ref. ($/kWh)</th>
+          </tr>
+        </thead>
+        <tbody id="suc-config-tbody"></tbody>
+      </table>
+    </div>
+    <div class="save-bar">
+      <button class="btn-primary" onclick="guardarSucs()">Guardar configuración</button>
+      <span class="save-msg" id="save-msg-suc">Guardado</span>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MESES_L = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const STORE_KEY = 'dalton_solar_v2';
+const SUCS_KEY  = 'dalton_sucs_v2';
+
+const SUCS_DEFAULT = [
+  {id:'slp-eco', n:'SLP Ecomobility', kw:72.4, base:10640, tarifa:2.73},
+  {id:'slp-asi', n:'SLP Asiáticos',   kw:76.8, base:10100, tarifa:2.65},
+  {id:'suc-03',  n:'Sucursal 3',      kw:60,   base:8500,  tarifa:2.65},
+  {id:'suc-04',  n:'Sucursal 4',      kw:55,   base:7800,  tarifa:2.65},
+  {id:'suc-05',  n:'Sucursal 5',      kw:80,   base:11000, tarifa:2.65},
+  {id:'suc-06',  n:'Sucursal 6',      kw:65,   base:9200,  tarifa:2.65},
+  {id:'suc-07',  n:'Sucursal 7',      kw:70,   base:9800,  tarifa:2.65},
+  {id:'suc-08',  n:'Sucursal 8',      kw:58,   base:8200,  tarifa:2.65},
+  {id:'suc-09',  n:'Sucursal 9',      kw:75,   base:10400, tarifa:2.65},
+  {id:'suc-10',  n:'Sucursal 10',     kw:68,   base:9600,  tarifa:2.65},
+];
+
+function loadSucs(){ try{ const r=JSON.parse(localStorage.getItem(SUCS_KEY)); return r&&r.length?r:SUCS_DEFAULT; }catch(e){return SUCS_DEFAULT;} }
+function saveSucs(s){ localStorage.setItem(SUCS_KEY, JSON.stringify(s)); }
+function loadData(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY))||{}; }catch(e){return {};} }
+function saveData(d){ localStorage.setItem(STORE_KEY, JSON.stringify(d)); }
+
+let SUCS = loadSucs();
+let data = loadData();
+let charts = {};
+
+function genSolar(kw){ return Math.round(kw*5.0*30*0.80); }
+function defDato(s){ return {consumo:s.base, solar:genSolar(s.kw), pago:Math.round(s.base*s.tarifa*0.13), real:false}; }
+
+function mesKey(){
+  return document.getElementById('sel-año').value+'-'+String(parseInt(document.getElementById('sel-mes').value)+1).padStart(2,'0');
+}
+
+function getDato(sucId, mk){
+  const s = SUCS.find(x=>x.id===sucId);
+  if(data[sucId] && data[sucId][mk]) return data[sucId][mk];
+  return defDato(s);
+}
+
+function eficColor(e){ return e>=85?'#1D9E75':e>=70?'#EF9F27':'#E24B4A'; }
+function eficBadge(e){
+  if(e>=85) return `<span class="badge badge-ok">${e}%</span>`;
+  if(e>=70) return `<span class="badge badge-warn">${e}%</span>`;
+  return `<span class="badge badge-bad">${e}%</span>`;
+}
+function fmt(n){ return n.toLocaleString('es-MX'); }
+function fmtP(n){ return '$'+n.toLocaleString('es-MX'); }
+
+function renderAll(){
+  const mk = mesKey();
+  let totC=0,totS=0,totP=0,totA=0;
+  const alertas = [];
+
+  const rows = SUCS.map(s=>{
+    const d = getDato(s.id, mk);
+    totC+=d.consumo; totS+=d.solar; totP+=d.pago;
+    const efic = Math.min(100, Math.round(d.solar/Math.max(d.consumo,1)*100));
+    const ahorro = Math.round(d.solar * s.tarifa);
+    totA+=ahorro;
+    const bc = eficColor(efic);
+    const est = !d.real ? '<span class="est-tag">est.</span>':'';
+    if(efic<70 && d.real) alertas.push({t:'bad', msg:`<strong>${s.n}</strong>: eficiencia crítica de ${efic}% — revisar inversor o paneles.`});
+    else if(efic<85 && d.real) alertas.push({t:'warn', msg:`<strong>${s.n}</strong>: eficiencia baja de ${efic}% — posible suciedad o nublado.`});
+    return `<tr>
+      <td><span class="suc-name">${s.n}</span>${est}</td>
+      <td class="hide-mobile">${fmt(d.consumo)}</td>
+      <td class="hide-mobile">${fmt(d.solar)}</td>
+      <td>${fmtP(d.pago)}</td>
+      <td class="hide-mobile">${fmtP(ahorro)}</td>
+      <td><div class="bar-wrap"><div class="bar-fill" style="width:${efic}%;background:${bc}"></div></div></td>
+      <td>${eficBadge(efic)}</td>
+    </tr>`;
+  });
+
+  document.getElementById('tbody').innerHTML = rows.join('');
+  const efT = Math.min(100,Math.round(totS/Math.max(totC,1)*100));
+  document.getElementById('tfoot').innerHTML = `
+    <td><strong>Total</strong></td>
+    <td class="hide-mobile">${fmt(totC)}</td>
+    <td class="hide-mobile">${fmt(totS)}</td>
+    <td>${fmtP(totP)}</td>
+    <td class="hide-mobile">${fmtP(totA)}</td>
+    <td></td>
+    <td>${eficBadge(efT)}</td>`;
+
+  const ecT = eficColor(efT);
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Consumo total</div><div class="kpi-val">${(totC/1000).toFixed(1)}k kWh</div><div class="kpi-sub">${MESES_L[parseInt(document.getElementById('sel-mes').value)]}</div></div>
+    <div class="kpi"><div class="kpi-label">Generación solar</div><div class="kpi-val green">${(totS/1000).toFixed(1)}k kWh</div><div class="kpi-sub">del sistema instalado</div></div>
+    <div class="kpi"><div class="kpi-label">Pago CFE total</div><div class="kpi-val">${fmtP(totP)}</div><div class="kpi-sub">todas las sucursales</div></div>
+    <div class="kpi"><div class="kpi-label">Ahorro estimado</div><div class="kpi-val green">${fmtP(totA)}</div><div class="kpi-sub">vs sin paneles</div></div>
+    <div class="kpi"><div class="kpi-label">Eficiencia promedio</div><div class="kpi-val" style="color:${ecT}">${efT}%</div><div class="kpi-sub">del sistema solar</div></div>`;
+
+  document.getElementById('alertas').innerHTML = alertas.map(a=>
+    `<div class="alert alert-${a.t}">${a.msg}</div>`).join('');
+}
+
+function renderCharts(){
+  const mk = mesKey();
+  const nombres = SUCS.map(s=>s.n.replace('Sucursal','S.').replace('SLP ',''));
+  const consumos = SUCS.map(s=>getDato(s.id,mk).consumo);
+  const solares  = SUCS.map(s=>getDato(s.id,mk).solar);
+  const efics    = SUCS.map(s=>Math.min(100,Math.round(getDato(s.id,mk).solar/Math.max(getDato(s.id,mk).consumo,1)*100)));
+
+  if(charts.bar) charts.bar.destroy();
+  charts.bar = new Chart(document.getElementById('cBar'),{
+    type:'bar',
+    data:{labels:nombres,datasets:[
+      {label:'Generación solar',data:solares,backgroundColor:'#5DCAA5'},
+      {label:'Consumo CFE',data:consumos,backgroundColor:'#85B7EB'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{size:11},autoSkip:false,maxRotation:30},grid:{display:false}},
+              y:{ticks:{callback:v=>(v/1000).toFixed(0)+'k kWh',font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}}}}
+  });
+
+  if(charts.ef) charts.ef.destroy();
+  charts.ef = new Chart(document.getElementById('cEfic'),{
+    type:'bar',
+    data:{labels:nombres,datasets:[{label:'Eficiencia %',data:efics,backgroundColor:efics.map(eficColor)}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{size:11},autoSkip:false,maxRotation:30},grid:{display:false}},
+              y:{min:0,max:100,ticks:{callback:v=>v+'%',font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}}}}
+  });
+}
+
+function renderCaptura(){
+  const mk = mesKey();
+  document.getElementById('captura-grid').innerHTML = SUCS.map(s=>{
+    const d = getDato(s.id,mk);
+    return `<div class="captura-card">
+      <div class="captura-card-header">
+        <span class="captura-card-name">${s.n}</span>
+        <span class="captura-card-kw">${s.kw} kW</span>
+      </div>
+      <div class="field"><label>Consumo CFE (kWh)</label><input type="number" id="ci_${s.id}" value="${d.consumo}" min="0" step="10"></div>
+      <div class="field"><label>Generación solar (kWh)</label><input type="number" id="gi_${s.id}" value="${d.solar}" min="0" step="10"></div>
+      <div class="field"><label>Pago CFE ($MXN)</label><input type="number" id="pi_${s.id}" value="${d.pago}" min="0" step="100"></div>
+    </div>`;
+  }).join('');
+}
+
+function guardar(){
+  const mk = mesKey();
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  SUCS.forEach(s=>{
+    const consumo = parseInt(document.getElementById('ci_'+s.id).value)||0;
+    const solar   = parseInt(document.getElementById('gi_'+s.id).value)||0;
+    const pago    = parseInt(document.getElementById('pi_'+s.id).value)||0;
+    if(!data[s.id]) data[s.id]={};
+    data[s.id][mk] = {consumo, solar, pago, real:true};
+  });
+  saveData(data);
+  const msg = document.getElementById('save-msg');
+  msg.style.display='inline';
+  setTimeout(()=>{ msg.style.display='none'; btn.disabled=false; btn.textContent='Guardar periodo'; },2000);
+  showView('resumen', document.querySelector('.nav-btn'));
+  renderAll();
+}
+
+function renderHistorial(){
+  const sucId = document.getElementById('hist-suc').value;
+  const año   = document.getElementById('hist-año').value;
+  const suc   = SUCS.find(s=>s.id===sucId);
+  if(!suc) return;
+  document.getElementById('hist-title').textContent = `Historial ${año} — ${suc.n}`;
+  const efics=[],ahorros=[],pagos=[];
+  MESES.forEach((_,i)=>{
+    const k=año+'-'+String(i+1).padStart(2,'0');
+    const d=getDato(sucId,k);
+    efics.push(Math.min(100,Math.round(d.solar/Math.max(d.consumo,1)*100)));
+    ahorros.push(Math.round(d.solar*suc.tarifa));
+    pagos.push(d.pago);
+  });
+  if(charts.hist) charts.hist.destroy();
+  charts.hist = new Chart(document.getElementById('cHist'),{
+    type:'bar',
+    data:{labels:MESES,datasets:[
+      {type:'line',label:'Eficiencia %',data:efics,borderColor:'#1D9E75',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'#1D9E75',yAxisID:'yE'},
+      {label:'Ahorro $MXN',data:ahorros,backgroundColor:'#B5D4F4',yAxisID:'yA'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{font:{size:11}},grid:{display:false}},
+        yE:{type:'linear',position:'left',min:0,max:100,ticks:{callback:v=>v+'%',font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}},
+        yA:{type:'linear',position:'right',ticks:{callback:v=>'$'+Math.round(v/1000)+'k',font:{size:11}},grid:{display:false}}
+      }}
+  });
+  if(charts.pago) charts.pago.destroy();
+  charts.pago = new Chart(document.getElementById('cPago'),{
+    type:'line',
+    data:{labels:MESES,datasets:[{label:'Pago CFE',data:pagos,borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,0.08)',fill:true,borderWidth:2,pointRadius:3,tension:0.3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{size:11}},grid:{display:false}},y:{ticks:{callback:v=>'$'+Math.round(v/1000)+'k',font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}}}}
+  });
+}
+
+function renderSucConfig(){
+  document.getElementById('suc-config-tbody').innerHTML = SUCS.map((s,i)=>`<tr>
+    <td style="color:var(--gray-400);font-weight:600">${String(i+1).padStart(2,'0')}</td>
+    <td><input type="text" id="sn_${s.id}" value="${s.n}" style="width:100%;padding:6px 8px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;outline:none"></td>
+    <td><input type="number" id="sk_${s.id}" value="${s.kw}" min="1" step="0.1" style="width:90px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;outline:none"></td>
+    <td><input type="number" id="sb_${s.id}" value="${s.base}" min="100" step="100" style="width:110px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;outline:none"></td>
+    <td><input type="number" id="st_${s.id}" value="${s.tarifa}" min="1" step="0.01" style="width:90px;padding:6px 8px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-size:13px;outline:none"></td>
+  </tr>`).join('');
+}
+
+function guardarSucs(){
+  SUCS = SUCS.map(s=>({
+    ...s,
+    n:   document.getElementById('sn_'+s.id).value.trim()||s.n,
+    kw:  parseFloat(document.getElementById('sk_'+s.id).value)||s.kw,
+    base:parseInt(document.getElementById('sb_'+s.id).value)||s.base,
+    tarifa:parseFloat(document.getElementById('st_'+s.id).value)||s.tarifa,
+  }));
+  saveSucs(SUCS);
+  const msg = document.getElementById('save-msg-suc');
+  msg.style.display='inline';
+  setTimeout(()=>msg.style.display='none',2000);
+  renderAll();
+}
+
+function showView(v, btn){
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(v==='graficas') renderCharts();
+  if(v==='captura') renderCaptura();
+  if(v==='sucursales') renderSucConfig();
+  if(v==='historial'){
+    const sel = document.getElementById('hist-suc');
+    if(!sel.options.length) SUCS.forEach(s=>{ const o=document.createElement('option'); o.value=s.id; o.textContent=s.n; sel.appendChild(o); });
+    renderHistorial();
+  }
+}
+
+document.getElementById('sel-mes').addEventListener('change', ()=>{ renderAll(); if(document.getElementById('view-graficas').classList.contains('active')) renderCharts(); if(document.getElementById('view-captura').classList.contains('active')) renderCaptura(); });
+document.getElementById('sel-año').addEventListener('change', ()=>{ renderAll(); if(document.getElementById('view-graficas').classList.contains('active')) renderCharts(); if(document.getElementById('view-captura').classList.contains('active')) renderCaptura(); });
+
+const now = new Date();
+document.getElementById('sel-mes').value = now.getMonth();
+document.getElementById('sel-año').value = now.getFullYear() >= 2025 && now.getFullYear() <= 2028 ? now.getFullYear() : 2026;
+renderAll();
+</script>
+</body>
+</html>
