@@ -165,8 +165,9 @@
           <tr>
             <th style="min-width:180px">Sucursal</th>
             <th class="hide-mobile" style="min-width:90px">Región</th>
-            <th class="hide-mobile">Consumo (kWh)</th>
-            <th class="hide-mobile">Generación (kWh)</th>
+            <th class="hide-mobile">Consumo CFE (kWh)</th>
+            <th class="hide-mobile">Generación solar (kWh)</th>
+            <th class="hide-mobile">Consumo real (kWh)</th>
             <th>Pago CFE</th>
             <th class="hide-mobile">Ahorro est.</th>
             <th style="min-width:90px">Eficiencia</th>
@@ -182,8 +183,9 @@
   <!-- Gráficas -->
   <div class="view" id="view-graficas">
     <div class="chart-card">
-      <div class="chart-title">Consumo CFE vs generación solar por sucursal</div>
+      <div class="chart-title">Consumo CFE vs generación solar vs consumo real por sucursal</div>
       <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#C5B4E3"></div>Consumo real (CFE + solar)</div>
         <div class="legend-item"><div class="legend-dot" style="background:#5DCAA5"></div>Generación solar</div>
         <div class="legend-item"><div class="legend-dot" style="background:#85B7EB"></div>Consumo CFE</div>
       </div>
@@ -391,10 +393,13 @@ function renderAll(){
   let totC=0,totS=0,totP=0,totA=0;
   const alertas=[];
 
+  let totReal=0;
   const rows = SUCS.map(s=>{
     const d = getDato(s.id, mk);
-    totC+=d.consumo; totS+=d.solar; totP+=d.pago;
-    const efic = Math.min(100,Math.round(d.solar/Math.max(d.consumo,1)*100));
+    const real = d.consumo + d.solar; // consumo real = CFE + solar generado
+    totC+=d.consumo; totS+=d.solar; totP+=d.pago; totReal+=real;
+    // eficiencia: qué % del consumo real fue cubierto por solar
+    const efic = Math.min(100,Math.round(d.solar/Math.max(real,1)*100));
     const ahorro = Math.round(d.solar*s.tarifa);
     totA+=ahorro;
     const bc = eficColor(efic);
@@ -407,6 +412,7 @@ function renderAll(){
       <td class="hide-mobile">${regionBadge}</td>
       <td class="hide-mobile">${fmt(d.consumo)}</td>
       <td class="hide-mobile">${fmt(d.solar)}</td>
+      <td class="hide-mobile" style="font-weight:500;color:var(--gray-700)">${fmt(real)}</td>
       <td>${fmtP(d.pago)}</td>
       <td class="hide-mobile">${fmtP(ahorro)}</td>
       <td><div class="bar-wrap"><div class="bar-fill" style="width:${efic}%;background:${bc}"></div></div></td>
@@ -415,12 +421,13 @@ function renderAll(){
   });
 
   document.getElementById('tbody').innerHTML = rows.join('');
-  const efT = Math.min(100,Math.round(totS/Math.max(totC,1)*100));
+  const efT = Math.min(100,Math.round(totS/Math.max(totReal,1)*100));
   document.getElementById('tfoot').innerHTML = `
     <td><strong>Total (${SUCS.length} sucursales)</strong></td>
     <td class="hide-mobile"></td>
     <td class="hide-mobile">${fmt(totC)}</td>
     <td class="hide-mobile">${fmt(totS)}</td>
+    <td class="hide-mobile" style="font-weight:600">${fmt(totReal)}</td>
     <td>${fmtP(totP)}</td>
     <td class="hide-mobile">${fmtP(totA)}</td>
     <td></td>
@@ -429,11 +436,12 @@ function renderAll(){
   const ecT = eficColor(efT);
   document.getElementById('kpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Sucursales activas</div><div class="kpi-val">${SUCS.length}</div><div class="kpi-sub">en monitoreo</div></div>
-    <div class="kpi"><div class="kpi-label">Consumo total</div><div class="kpi-val">${(totC/1000).toFixed(1)}k kWh</div><div class="kpi-sub">${MESES_L[parseInt(document.getElementById('sel-mes').value)]}</div></div>
-    <div class="kpi"><div class="kpi-label">Generación solar</div><div class="kpi-val" style="color:var(--green-dark)">${(totS/1000).toFixed(1)}k kWh</div><div class="kpi-sub">del sistema instalado</div></div>
+    <div class="kpi"><div class="kpi-label">Consumo real total</div><div class="kpi-val">${(totReal/1000).toFixed(1)}k kWh</div><div class="kpi-sub">CFE + solar generado</div></div>
+    <div class="kpi"><div class="kpi-label">Consumo CFE</div><div class="kpi-val">${(totC/1000).toFixed(1)}k kWh</div><div class="kpi-sub">pagado a la red</div></div>
+    <div class="kpi"><div class="kpi-label">Generación solar</div><div class="kpi-val" style="color:var(--green-dark)">${(totS/1000).toFixed(1)}k kWh</div><div class="kpi-sub">producido por paneles</div></div>
     <div class="kpi"><div class="kpi-label">Pago CFE total</div><div class="kpi-val">${fmtP(totP)}</div><div class="kpi-sub">todas las sucursales</div></div>
     <div class="kpi"><div class="kpi-label">Ahorro estimado</div><div class="kpi-val" style="color:var(--green-dark)">${fmtP(totA)}</div><div class="kpi-sub">vs sin paneles</div></div>
-    <div class="kpi"><div class="kpi-label">Eficiencia promedio</div><div class="kpi-val" style="color:${ecT}">${efT}%</div><div class="kpi-sub">del sistema solar</div></div>`;
+    <div class="kpi"><div class="kpi-label">Cobertura solar</div><div class="kpi-val" style="color:${ecT}">${efT}%</div><div class="kpi-sub">del consumo real cubierto</div></div>`;
 
   document.getElementById('alertas').innerHTML = alertas.map(a=>
     `<div class="alert alert-${a.t}">${a.msg}</div>`).join('');
@@ -445,12 +453,17 @@ function renderCharts(){
   const nombres = SUCS.map(s=>s.n);
   const consumos = SUCS.map(s=>getDato(s.id,mk).consumo);
   const solares  = SUCS.map(s=>getDato(s.id,mk).solar);
-  const efics    = SUCS.map(s=>Math.min(100,Math.round(getDato(s.id,mk).solar/Math.max(getDato(s.id,mk).consumo,1)*100)));
+  const reales   = SUCS.map(s=>getDato(s.id,mk).consumo + getDato(s.id,mk).solar);
+  const efics    = SUCS.map(s=>{
+    const d=getDato(s.id,mk); const r=d.consumo+d.solar;
+    return Math.min(100,Math.round(d.solar/Math.max(r,1)*100));
+  });
 
   if(charts.bar) charts.bar.destroy();
   charts.bar = new Chart(document.getElementById('cBar'),{
     type:'bar',
     data:{labels:nombres,datasets:[
+      {label:'Consumo real',data:reales,backgroundColor:'#C5B4E3'},
       {label:'Generación solar',data:solares,backgroundColor:'#5DCAA5'},
       {label:'Consumo CFE',data:consumos,backgroundColor:'#85B7EB'}
     ]},
@@ -527,7 +540,8 @@ function renderHistorial(){
   MESES.forEach((_,i)=>{
     const k=año+'-'+String(i+1).padStart(2,'0');
     const d=getDato(sucId,k);
-    efics.push(Math.min(100,Math.round(d.solar/Math.max(d.consumo,1)*100)));
+    const real = d.consumo + d.solar;
+    efics.push(Math.min(100,Math.round(d.solar/Math.max(real,1)*100)));
     ahorros.push(Math.round(d.solar*suc.tarifa));
     pagos.push(d.pago);
   });
