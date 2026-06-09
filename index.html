@@ -270,7 +270,7 @@
 </div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzv4TtQRA_4PUKzFqUl5GzaVzGFAIH5tolzoMpJD33w21YxVqIMmgx_aX0S6wn1nuQAUQ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzOOEuaX99bGFzQ8q4jYiVd-zrH24cLDlUjvfosKCDmN3ICP_JLX9ilwbpr-QuzC8-reA/exec';
 const SUCS_KEY = 'dalton_sucs_v3';
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MESES_L = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -463,7 +463,7 @@ async function guardar(){
     const pago=parseInt(document.getElementById('pi_'+s.id).value)||0;
     if(!data[s.id]) data[s.id]={};
     data[s.id][mk]={consumo,solar,pago,real:true};
-    filas.push({sucursal_id:s.id,periodo:mk,consumo,solar,pago});
+    filas.push({sucursal_id:s.id,periodo:mk,consumo,solar,pago,nombre:s.n||'',razon_social:s.rs||'',region:s.region||''});
   });
   try {
     await guardarEnSheets(filas);
