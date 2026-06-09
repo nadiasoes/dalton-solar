@@ -307,10 +307,17 @@ function setStatus(txt, loading){
 
 // ── API: GET con parámetros (evita CORS) ──────────────────────────────────
 async function apiGet(params){
-  const qs = new URLSearchParams(params).toString();
-  const res = await fetch(SCRIPT_URL + '?' + qs);
+  // Build URL manually to avoid encoding issues with special chars
+  const qs = Object.entries(params)
+    .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(String(v===undefined||v===null?'':v)))
+    .join('&');
+  const url = SCRIPT_URL + '?' + qs;
+  console.log('[Dalton Solar] API call:', url);
+  const res = await fetch(url);
   if(!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
+  const text = await res.text();
+  console.log('[Dalton Solar] Response:', text.substring(0,200));
+  try { return JSON.parse(text); } catch(e) { return {ok:true}; }
 }
 
 // ── Cargar sucursales desde hoja "sucursales" ─────────────────────────────
