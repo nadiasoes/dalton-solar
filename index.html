@@ -313,7 +313,7 @@
 </div>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_vYHTmf_ISiPUlzqf9YNnr3Ulq1zZQGLcD54X1zJb5-60LTh1UPCe8pahd9Wh6NHaEA/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxEjYEfohmYpyt4ELSJLdp_wl3U7JDXLmvqwbyZWFHFAEakUf_HeQsNNUI3RQs63IyN4w/exec';
 const SUCS_KEY  = 'dalton_sucs_v4';
 const MESES     = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const MESES_L   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -391,8 +391,11 @@ async function cargarDatosDeSheets(){
     data = {};
     rows.forEach(r => {
       if(!r.sucursal_id || !r.periodo) return;
+      // Normalize periodo: handle "2026-04-01T06:00:00.000Z", "2026-04-01", or "2026-04"
+      let periodo = String(r.periodo).trim();
+      if(periodo.length > 7) periodo = periodo.substring(0,7); // keep "2026-04"
       if(!data[r.sucursal_id]) data[r.sucursal_id] = {};
-      data[r.sucursal_id][r.periodo] = {
+      data[r.sucursal_id][periodo] = {
         consumo: parseInt(r.consumo) || 0,
         solar:   parseInt(r.solar)   || 0,
         pago:    parseInt(r.pago)    || 0,
