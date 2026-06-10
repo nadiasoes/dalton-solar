@@ -200,11 +200,49 @@
 
   <!-- Captura -->
   <div class="view" id="view-captura">
-    <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px">Ingresa los datos del recibo CFE y del inversor Growatt para el periodo seleccionado. Los valores precargados son estimados.</p>
-    <div class="captura-grid" id="captura-grid"></div>
-    <div class="save-bar">
-      <button class="btn-primary" id="btn-save" onclick="guardar()">Guardar en Google Sheets</button>
-      <span class="save-msg" id="save-msg"></span>
+    <p style="font-size:13px;color:var(--gray-400);margin-bottom:16px">
+      Haz clic en <strong>Capturar</strong> en cualquier sucursal para ingresar los datos del mes seleccionado.
+      Los valores en <em>cursiva</em> son estimados — los reales aparecen en negro.
+    </p>
+
+    <!-- Tabla resumen captura -->
+    <div class="table-wrap" style="margin-bottom:20px">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width:160px">Sucursal</th>
+            <th>Consumo CFE (kWh)</th>
+            <th>Generación solar (kWh)</th>
+            <th>Consumo real (kWh)</th>
+            <th>Pago CFE ($MXN)</th>
+            <th>Cobertura</th>
+            <th style="width:100px"></th>
+          </tr>
+        </thead>
+        <tbody id="captura-tabla"></tbody>
+      </table>
+    </div>
+
+    <!-- Modal edición sucursal individual -->
+    <div class="modal-overlay" id="modal-captura">
+      <div class="modal" style="max-width:460px">
+        <h3 id="modal-cap-title">Capturar datos</h3>
+        <p id="modal-cap-sub" style="font-size:12px;color:var(--gray-400);margin-bottom:16px"></p>
+        <div class="field"><label>Consumo CFE (kWh) — del recibo</label><input type="number" id="cap-consumo" min="0" step="10"></div>
+        <div class="field"><label>Generación solar (kWh) — del inversor</label><input type="number" id="cap-solar" min="0" step="10"></div>
+        <div class="field"><label>Pago CFE ($MXN) — del recibo</label><input type="number" id="cap-pago" min="0" step="100"></div>
+        <div style="background:var(--gray-100);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:16px;font-size:13px">
+          <span style="color:var(--gray-400)">Consumo real: </span>
+          <strong id="cap-real-preview">—</strong>
+          <span style="color:var(--gray-400);margin-left:12px">Cobertura: </span>
+          <strong id="cap-cob-preview">—</strong>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="cerrarModalCaptura()">Cancelar</button>
+          <button class="btn-primary" id="btn-cap-save" onclick="guardarCaptura()">Guardar en Sheets</button>
+        </div>
+        <span class="save-msg" id="save-msg" style="margin-top:8px;display:block;text-align:right"></span>
+      </div>
     </div>
   </div>
 
@@ -546,53 +584,119 @@ function renderCharts(){
   });
 }
 
-// ── Render captura ────────────────────────────────────────────────────────
+// ── Render captura (tabla) ────────────────────────────────────────────────
+let capturaSucId = null;
+
 function renderCaptura(){
   const mk = mesKey();
-  document.getElementById('captura-grid').innerHTML = SUCS.map(s=>{
-    const d = getDato(s.id,mk);
-    return `<div class="captura-card">
-      <div class="captura-card-header">
-        <div class="captura-card-name">${s.n}</div>
-        <div class="captura-card-meta">${[s.rs, s.region, s.kw+' kW'].filter(Boolean).join(' · ')}</div>
-      </div>
-      <div class="field"><label>Consumo CFE (kWh)</label><input type="number" id="ci_${s.id}" value="${d.consumo}" min="0" step="10"></div>
-      <div class="field"><label>Generación solar (kWh)</label><input type="number" id="gi_${s.id}" value="${d.solar}" min="0" step="10"></div>
-      <div class="field"><label>Pago CFE ($MXN)</label><input type="number" id="pi_${s.id}" value="${d.pago}" min="0" step="100"></div>
-    </div>`;
+  const mes = MESES_L[parseInt(document.getElementById('sel-mes').value)];
+  const año = document.getElementById('sel-año').value;
+
+  document.getElementById('captura-tabla').innerHTML = SUCS.map(s=>{
+    const d = getDato(s.id, mk);
+    const real = d.consumo + d.solar;
+    const cob  = Math.min(100, Math.round(d.solar / Math.max(real,1) * 100));
+    const esReal = d.real;
+    const st = esReal ? '' : 'font-style:italic;color:var(--gray-400)';
+    const tag = esReal ? '' : '<span class="est-tag">est.</span>';
+    const bc  = eficColor(cob);
+    return `<tr>
+      <td>
+        <div class="suc-name">${s.n}</div>
+        ${s.region?`<div class="suc-sub">${s.region}</div>`:''}
+      </td>
+      <td style="${st}">${fmt(d.consumo)}${tag}</td>
+      <td style="${st}">${fmt(d.solar)}${tag}</td>
+      <td style="${st};font-weight:${esReal?'500':'400'}">${fmt(real)}${tag}</td>
+      <td style="${st}">${fmtP(d.pago)}${tag}</td>
+      <td><span class="badge ${cob>=85?'badge-ok':cob>=70?'badge-warn':'badge-bad'}">${cob}%</span></td>
+      <td>
+        <button class="btn-secondary" style="font-size:12px;padding:5px 12px"
+          onclick="abrirModalCaptura('${s.id}')">
+          ${esReal ? 'Editar' : 'Capturar'}
+        </button>
+      </td>
+    </tr>`;
   }).join('');
 }
 
-// ── Guardar datos mensuales ───────────────────────────────────────────────
-async function guardar(){
+function abrirModalCaptura(sucId){
   const mk = mesKey();
-  const btn = document.getElementById('btn-save');
-  const msg = document.getElementById('save-msg');
+  const mes = MESES_L[parseInt(document.getElementById('sel-mes').value)];
+  const año = document.getElementById('sel-año').value;
+  const s   = SUCS.find(x=>x.id===sucId);
+  const d   = getDato(sucId, mk);
+  capturaSucId = sucId;
+
+  document.getElementById('modal-cap-title').textContent = s.n;
+  document.getElementById('modal-cap-sub').textContent   = `${mes} ${año} · ${s.region||''} · ${s.kw} kW instalados`;
+  document.getElementById('cap-consumo').value = d.real ? d.consumo : '';
+  document.getElementById('cap-solar').value   = d.real ? d.solar   : '';
+  document.getElementById('cap-pago').value    = d.real ? d.pago    : '';
+  actualizarPreview();
+  // Wire input listeners
+  ['cap-consumo','cap-solar'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el){ el.oninput = actualizarPreview; }
+  });
+  document.getElementById('modal-captura').classList.add('open');
+  document.getElementById('cap-consumo').focus();
+}
+
+function actualizarPreview(){
+  const c = parseInt(document.getElementById('cap-consumo').value)||0;
+  const s = parseInt(document.getElementById('cap-solar').value)||0;
+  const real = c + s;
+  const cob  = real > 0 ? Math.min(100, Math.round(s/real*100)) : 0;
+  document.getElementById('cap-real-preview').textContent = fmt(real) + ' kWh';
+  document.getElementById('cap-cob-preview').textContent  = cob + '%';
+  document.getElementById('cap-cob-preview').style.color  = eficColor(cob);
+}
+
+function cerrarModalCaptura(){
+  capturaSucId = null;
+  document.getElementById('modal-captura').classList.remove('open');
+  document.getElementById('save-msg').style.display='none';
+}
+
+async function guardarCaptura(){
+  if(!capturaSucId) return;
+  const mk     = mesKey();
+  const s      = SUCS.find(x=>x.id===capturaSucId);
+  const consumo = parseInt(document.getElementById('cap-consumo').value)||0;
+  const solar   = parseInt(document.getElementById('cap-solar').value)||0;
+  const pago    = parseInt(document.getElementById('cap-pago').value)||0;
+  const btn     = document.getElementById('btn-cap-save');
+  const msg     = document.getElementById('save-msg');
+
   btn.disabled=true; btn.textContent='Guardando...';
-  setStatus('Guardando datos mensuales...', true);
+  setStatus('Guardando datos...', true);
+
+  if(!data[capturaSucId]) data[capturaSucId]={};
+  data[capturaSucId][mk] = {consumo, solar, pago, real:true};
 
   try {
-    const promises = SUCS.map(async s => {
-      const consumo = parseInt(document.getElementById('ci_'+s.id).value)||0;
-      const solar   = parseInt(document.getElementById('gi_'+s.id).value)||0;
-      const pago    = parseInt(document.getElementById('pi_'+s.id).value)||0;
-      if(!data[s.id]) data[s.id]={};
-      data[s.id][mk] = {consumo, solar, pago, real:true};
-      return apiGet({tipo:'guardar_dato', sucursal_id:s.id, periodo:mk, consumo, solar, pago});
-    });
-    await Promise.all(promises);
-    msg.style.color='#27500A'; msg.textContent='Guardado en Google Sheets';
+    await apiGet({tipo:'guardar_dato', sucursal_id:capturaSucId, periodo:mk, consumo, solar, pago});
+    msg.style.color='#27500A';
+    msg.textContent='Guardado en Google Sheets';
+    msg.style.display='block';
     setStatus('Sincronizado con Google Sheets', false);
+    setTimeout(()=>{
+      cerrarModalCaptura();
+      renderCaptura();
+      renderAll();
+      btn.disabled=false; btn.textContent='Guardar en Sheets';
+    }, 1200);
   } catch(e){
     msg.style.color='#A32D2D'; msg.textContent='Error de conexión';
+    msg.style.display='block';
     setStatus('Error de conexión', false);
+    btn.disabled=false; btn.textContent='Guardar en Sheets';
   }
-
-  msg.style.display='inline';
-  setTimeout(()=>{ msg.style.display='none'; btn.disabled=false; btn.textContent='Guardar en Google Sheets'; },3000);
-  showView('resumen', document.querySelector('.nav-btn'));
-  renderAll();
 }
+
+// legacy stub para compatibilidad
+function guardar(){ guardarCaptura(); }
 
 // ── Render historial ──────────────────────────────────────────────────────
 function renderHistorial(){
