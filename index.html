@@ -258,46 +258,67 @@
       <span class="save-msg" id="save-msg-suc"></span>
     </div>
   </div>
-</main>
 
   <!-- Análisis -->
-  <div class="view" id="view-analisis">
-    <p style="font-size:13px;color:var(--gray-400);margin-bottom:20px">Promedios y comparativos anuales por sucursal.</p>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-      <label style="font-size:13px;color:var(--gray-400)">Año:</label>
-      <select id="anal-año" onchange="renderAnalisis()">
-        <option value="2025">2025</option><option value="2026" selected>2026</option>
-        <option value="2027">2027</option><option value="2028">2028</option>
-      </select>
+  <div class="view" id="view-analisis" style="padding:0 4px">
+    <p style="font-size:13px;color:var(--gray-400);margin-bottom:20px">Promedios y comparativos anuales. Filtra por año, región o sucursal.</p>
+
+    <!-- Filtros -->
+    <div style="background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.04em">Año</label>
+        <select id="anal-año" onchange="renderAnalisis()">
+          <option value="2025">2025</option><option value="2026" selected>2026</option>
+          <option value="2027">2027</option><option value="2028">2028</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.04em">Región</label>
+        <select id="anal-region" onchange="renderAnalisis()">
+          <option value="todas">Todas las regiones</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.04em">Sucursal</label>
+        <select id="anal-suc" onchange="renderAnalisis()">
+          <option value="todas">Todas las sucursales</option>
+        </select>
+      </div>
+      <div style="margin-top:18px">
+        <button class="btn-secondary" onclick="limpiarFiltrosAnal()" style="font-size:12px;padding:7px 14px">Limpiar filtros</button>
+      </div>
     </div>
+
     <div class="kpi-grid" id="anal-kpis" style="margin-bottom:24px"></div>
     <div class="table-wrap" style="margin-bottom:20px">
       <table>
         <thead>
           <tr>
             <th style="min-width:180px">Sucursal</th>
-            <th>Meses con datos</th>
-            <th>Prom. consumo CFE (kWh)</th>
-            <th>Prom. generación (kWh)</th>
-            <th>Prom. consumo real (kWh)</th>
-            <th>Prom. pago CFE</th>
-            <th>Ahorro total año</th>
-            <th>Cobertura prom.</th>
+            <th class="hide-mobile">Región</th>
+            <th>Meses</th>
+            <th class="hide-mobile">Prom. CFE (kWh)</th>
+            <th class="hide-mobile">Prom. solar (kWh)</th>
+            <th class="hide-mobile">Prom. real (kWh)</th>
+            <th>Prom. pago</th>
+            <th>Ahorro año</th>
+            <th>Cobertura</th>
           </tr>
         </thead>
         <tbody id="anal-tbody"></tbody>
         <tfoot><tr class="totals-row" id="anal-tfoot"></tr></tfoot>
       </table>
     </div>
-    <div class="chart-card">
+    <div class="chart-card" style="margin-bottom:16px">
       <div class="chart-title" id="anal-chart-title">Cobertura solar promedio anual por sucursal (%)</div>
-      <div style="position:relative;height:240px"><canvas id="cAnalEfic" role="img" aria-label="Cobertura promedio anual por sucursal">Cobertura anual.</canvas></div>
+      <div style="position:relative;height:260px"><canvas id="cAnalEfic" role="img" aria-label="Cobertura promedio anual">Cobertura anual.</canvas></div>
     </div>
     <div class="chart-card">
       <div class="chart-title">Ahorro total acumulado en el año por sucursal ($MXN)</div>
-      <div style="position:relative;height:240px"><canvas id="cAnalAhorro" role="img" aria-label="Ahorro total anual por sucursal">Ahorro anual.</canvas></div>
+      <div style="position:relative;height:260px"><canvas id="cAnalAhorro" role="img" aria-label="Ahorro total anual">Ahorro anual.</canvas></div>
     </div>
   </div>
+</main>
 </main>
 
 <!-- Modal confirmación eliminar -->
@@ -722,12 +743,44 @@ async function confirmarEliminar(){
 }
 
 // ── Render análisis ──────────────────────────────────────────────────────
+function poblarFiltrosAnal(){
+  // Regiones
+  const selReg = document.getElementById('anal-region');
+  const selSuc = document.getElementById('anal-suc');
+  const regActual = selReg.value;
+  const sucActual = selSuc.value;
+
+  const regiones = [...new Set(SUCS.map(s=>s.region).filter(Boolean))].sort();
+  selReg.innerHTML = '<option value="todas">Todas las regiones</option>';
+  regiones.forEach(r=>{ const o=document.createElement('option'); o.value=r; o.textContent=r; if(r===regActual) o.selected=true; selReg.appendChild(o); });
+
+  const regionSel = selReg.value;
+  const sucsFiltradas = regionSel==='todas' ? SUCS : SUCS.filter(s=>s.region===regionSel);
+  selSuc.innerHTML = '<option value="todas">Todas las sucursales</option>';
+  sucsFiltradas.forEach(s=>{ const o=document.createElement('option'); o.value=s.id; o.textContent=s.n; if(s.id===sucActual) o.selected=true; selSuc.appendChild(o); });
+}
+
+function limpiarFiltrosAnal(){
+  document.getElementById('anal-region').value='todas';
+  document.getElementById('anal-suc').value='todas';
+  renderAnalisis();
+}
+
 function renderAnalisis(){
-  const año = document.getElementById('anal-año').value;
-  let totAhorro=0, totConsumoReal=0, totSolar=0, totCFE=0, totPago=0;
+  poblarFiltrosAnal();
+  const año       = document.getElementById('anal-año').value;
+  const regionSel = document.getElementById('anal-region').value;
+  const sucSel    = document.getElementById('anal-suc').value;
+
+  // Aplicar filtros
+  let sucsFiltradas = SUCS;
+  if(regionSel !== 'todas') sucsFiltradas = sucsFiltradas.filter(s=>s.region===regionSel);
+  if(sucSel    !== 'todas') sucsFiltradas = sucsFiltradas.filter(s=>s.id===sucSel);
+
+  let totAhorro=0, totConsumoReal=0, totSolar=0, totCFE=0, totPago=0, totMeses=0;
   let sucConDatos=0;
 
-  const rows = SUCS.map(s=>{
+  const rows = sucsFiltradas.map(s=>{
     let meses=0, sumC=0, sumS=0, sumP=0;
     MESES.forEach((_,i)=>{
       const k=año+'-'+String(i+1).padStart(2,'0');
@@ -742,46 +795,53 @@ function renderAnalisis(){
     const promReal = promC + promS;
     const cob = Math.min(100,Math.round(promS/Math.max(promReal,1)*100));
     const ahorroTotal = Math.round(sumS*s.tarifa);
-    totAhorro+=ahorroTotal; totConsumoReal+=(sumC+sumS); totSolar+=sumS; totCFE+=sumC; totPago+=sumP;
-    const bc = eficColor(cob);
-    return {s, meses, promC, promS, promReal, promP, cob, ahorroTotal, bc};
+    totAhorro+=ahorroTotal; totConsumoReal+=(sumC+sumS);
+    totSolar+=sumS; totCFE+=sumC; totPago+=sumP; totMeses+=meses;
+    return {s, meses, promC, promS, promReal, promP, cob, ahorroTotal};
   }).filter(Boolean);
 
-  document.getElementById('anal-tbody').innerHTML = rows.map(r=>`<tr>
-    <td><div class="suc-name">${r.s.n}</div>${r.s.region?`<div class="suc-sub">${r.s.region}</div>`:''}</td>
-    <td style="text-align:center">${r.meses}/12</td>
-    <td>${fmt(r.promC)}</td>
-    <td>${fmt(r.promS)}</td>
-    <td style="font-weight:500">${fmt(r.promReal)}</td>
-    <td>${fmtP(r.promP)}</td>
-    <td style="color:var(--green-dark);font-weight:500">${fmtP(r.ahorroTotal)}</td>
-    <td><span class="badge ${r.cob>=85?'badge-ok':r.cob>=70?'badge-warn':'badge-bad'}">${r.cob}%</span></td>
-  </tr>`).join('');
+  const filtroLabel = sucSel!=='todas'
+    ? sucsFiltradas[0]?.n
+    : regionSel!=='todas' ? regionSel : 'todas las sucursales';
+
+  document.getElementById('anal-tbody').innerHTML = rows.length
+    ? rows.map(r=>`<tr>
+        <td><div class="suc-name">${r.s.n}</div>${r.s.rs?`<div class="suc-sub">${r.s.rs}</div>`:''}</td>
+        <td class="hide-mobile">${r.s.region?`<span class="badge-region">${r.s.region}</span>`:''}</td>
+        <td style="text-align:center">${r.meses}/12</td>
+        <td class="hide-mobile">${fmt(r.promC)}</td>
+        <td class="hide-mobile">${fmt(r.promS)}</td>
+        <td class="hide-mobile" style="font-weight:500">${fmt(r.promReal)}</td>
+        <td>${fmtP(r.promP)}</td>
+        <td style="color:var(--green-dark);font-weight:500">${fmtP(r.ahorroTotal)}</td>
+        <td><span class="badge ${r.cob>=85?'badge-ok':r.cob>=70?'badge-warn':'badge-bad'}">${r.cob}%</span></td>
+      </tr>`).join('')
+    : `<tr><td colspan="9" style="text-align:center;color:var(--gray-400);padding:24px">Sin datos capturados para este filtro</td></tr>`;
 
   const promCobGlobal = rows.length ? Math.round(rows.reduce((a,r)=>a+r.cob,0)/rows.length) : 0;
-  const promPagoGlobal = rows.length ? Math.round(totPago/rows.reduce((a,r)=>a+r.meses,0)) : 0;
-  document.getElementById('anal-tfoot').innerHTML = `
+  document.getElementById('anal-tfoot').innerHTML = rows.length ? `
     <td><strong>Promedio / Total</strong></td>
+    <td class="hide-mobile"></td>
     <td></td>
-    <td>${fmt(Math.round(totCFE/Math.max(rows.reduce((a,r)=>a+r.meses,0),1)))}</td>
-    <td>${fmt(Math.round(totSolar/Math.max(rows.reduce((a,r)=>a+r.meses,0),1)))}</td>
-    <td><strong>${fmt(Math.round(totConsumoReal/Math.max(rows.reduce((a,r)=>a+r.meses,0),1)))}</strong></td>
-    <td>${fmtP(promPagoGlobal)}</td>
+    <td class="hide-mobile">${fmt(Math.round(totCFE/Math.max(totMeses,1)))}</td>
+    <td class="hide-mobile">${fmt(Math.round(totSolar/Math.max(totMeses,1)))}</td>
+    <td class="hide-mobile"><strong>${fmt(Math.round(totConsumoReal/Math.max(totMeses,1)))}</strong></td>
+    <td>${fmtP(Math.round(totPago/Math.max(totMeses,1)))}</td>
     <td style="color:var(--green-dark)"><strong>${fmtP(totAhorro)}</strong></td>
-    <td><span class="badge ${promCobGlobal>=85?'badge-ok':promCobGlobal>=70?'badge-warn':'badge-bad'}">${promCobGlobal}%</span></td>`;
+    <td><span class="badge ${promCobGlobal>=85?'badge-ok':promCobGlobal>=70?'badge-warn':'badge-bad'}">${promCobGlobal}%</span></td>` : '';
 
   const ecT = eficColor(promCobGlobal);
   document.getElementById('anal-kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Sucursales con datos</div><div class="kpi-val">${sucConDatos}</div><div class="kpi-sub">de ${SUCS.length} registradas</div></div>
-    <div class="kpi"><div class="kpi-label">Consumo real prom.</div><div class="kpi-val">${(totConsumoReal/Math.max(rows.reduce((a,r)=>a+r.meses,0),1)/1000).toFixed(1)}k kWh</div><div class="kpi-sub">por sucursal/mes</div></div>
-    <div class="kpi"><div class="kpi-label">Generación solar prom.</div><div class="kpi-val" style="color:var(--green-dark)">${(totSolar/Math.max(rows.reduce((a,r)=>a+r.meses,0),1)/1000).toFixed(1)}k kWh</div><div class="kpi-sub">por sucursal/mes</div></div>
-    <div class="kpi"><div class="kpi-label">Ahorro total año</div><div class="kpi-val" style="color:var(--green-dark)">${fmtP(totAhorro)}</div><div class="kpi-sub">todas las sucursales</div></div>
+    <div class="kpi"><div class="kpi-label">Sucursales con datos</div><div class="kpi-val">${sucConDatos}</div><div class="kpi-sub">de ${sucsFiltradas.length} en filtro</div></div>
+    <div class="kpi"><div class="kpi-label">Consumo real prom.</div><div class="kpi-val">${totMeses?(totConsumoReal/totMeses/1000).toFixed(1)+'k':'—'} kWh</div><div class="kpi-sub">por sucursal/mes</div></div>
+    <div class="kpi"><div class="kpi-label">Generación solar prom.</div><div class="kpi-val" style="color:var(--green-dark)">${totMeses?(totSolar/totMeses/1000).toFixed(1)+'k':'—'} kWh</div><div class="kpi-sub">por sucursal/mes</div></div>
+    <div class="kpi"><div class="kpi-label">Ahorro total año</div><div class="kpi-val" style="color:var(--green-dark)">${fmtP(totAhorro)}</div><div class="kpi-sub">${filtroLabel}</div></div>
     <div class="kpi"><div class="kpi-label">Cobertura solar prom.</div><div class="kpi-val" style="color:${ecT}">${promCobGlobal}%</div><div class="kpi-sub">del consumo real</div></div>`;
 
-  document.getElementById('anal-chart-title').textContent = `Cobertura solar promedio ${año} por sucursal (%)`;
-  const nombres = rows.map(r=>r.s.n);
+  document.getElementById('anal-chart-title').textContent = `Cobertura solar promedio ${año} — ${filtroLabel} (%)`;
+  const nombres  = rows.map(r=>r.s.n);
   const coberturas = rows.map(r=>r.cob);
-  const ahorros = rows.map(r=>r.ahorroTotal);
+  const ahorros  = rows.map(r=>r.ahorroTotal);
 
   if(charts.analEfic) charts.analEfic.destroy();
   charts.analEfic = new Chart(document.getElementById('cAnalEfic'),{
