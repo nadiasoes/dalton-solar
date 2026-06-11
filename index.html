@@ -563,15 +563,100 @@ function renderAll(){
     <td></td>
     <td>${eficBadge(efT)}</td>`;
 
+  // KPIs útiles para el mes seleccionado
+  const mesNombre = MESES_L[parseInt(document.getElementById('sel-mes').value)];
+  const año = document.getElementById('sel-año').value;
+  const sucConDatosReales = SUCS.filter(s => { const d=getDato(s.id,mesKey()); return d.real; }).length;
+  const sucSinDatos = SUCS.length - sucConDatosReales;
+
+  // Semáforos
+  let verde=0, amarillo=0, rojo=0;
+  SUCS.forEach(s=>{
+    const d=getDato(s.id,mesKey());
+    if(!d.real) return;
+    const real=d.consumo+d.solar;
+    const efic=Math.min(100,Math.round(d.solar/Math.max(real,1)*100));
+    if(efic>=85) verde++;
+    else if(efic>=70) amarillo++;
+    else rojo++;
+  });
+
+  // Mejor y peor sucursal (solo con datos reales)
+  let mejorSuc=null, mejorEfic=0, peorSuc=null, peorEfic=101;
+  SUCS.forEach(s=>{
+    const d=getDato(s.id,mesKey());
+    if(!d.real) return;
+    const real=d.consumo+d.solar;
+    const efic=Math.min(100,Math.round(d.solar/Math.max(real,1)*100));
+    if(efic>mejorEfic){ mejorEfic=efic; mejorSuc=s; }
+    if(efic<peorEfic){ peorEfic=efic; peorSuc=s; }
+  });
+
+  // ── CO₂ evitado ─────────────────────────────────────────────────────────
+  // Factor de emisión México: 0.432 kg CO₂/kWh (SENER)
+  const FACTOR_CO2 = 0.432;
+
+  // CO₂ del mes — suma generación solar de sucursales con datos reales
+  const co2MesKg  = totS * FACTOR_CO2;
+  const co2MesTon = co2MesKg / 1000;
+
+  // CO₂ acumulado del año — suma todos los meses con datos reales
+  let solarAñoTotal = 0;
+  SUCS.forEach(s => {
+    for(let i = 1; i <= 12; i++){
+      const k = año + '-' + String(i).padStart(2,'0');
+      const d = getDato(s.id, k);
+      if(d.real) solarAñoTotal += d.solar;
+    }
+  });
+  const co2AñoTon = (solarAñoTotal * FACTOR_CO2) / 1000;
+
   const ecT = eficColor(efT);
   document.getElementById('kpis').innerHTML = `
-    <div class="kpi"><div class="kpi-label">Sucursales activas</div><div class="kpi-val">${SUCS.length}</div><div class="kpi-sub">en monitoreo</div></div>
-    <div class="kpi"><div class="kpi-label">Consumo real total</div><div class="kpi-val">${(totReal/1000).toFixed(1)}k kWh</div><div class="kpi-sub">CFE + solar generado</div></div>
-    <div class="kpi"><div class="kpi-label">Consumo CFE</div><div class="kpi-val">${(totC/1000).toFixed(1)}k kWh</div><div class="kpi-sub">pagado a la red</div></div>
-    <div class="kpi"><div class="kpi-label">Generación solar</div><div class="kpi-val" style="color:var(--green-dark)">${(totS/1000).toFixed(1)}k kWh</div><div class="kpi-sub">producido por paneles</div></div>
-    <div class="kpi"><div class="kpi-label">Pago CFE total</div><div class="kpi-val">${fmtP(totP)}</div><div class="kpi-sub">todas las sucursales</div></div>
-    <div class="kpi"><div class="kpi-label">Ahorro estimado</div><div class="kpi-val" style="color:var(--green-dark)">${fmtP(totA)}</div><div class="kpi-sub">vs sin paneles</div></div>
-    <div class="kpi"><div class="kpi-label">Cobertura solar</div><div class="kpi-val" style="color:${ecT}">${efT}%</div><div class="kpi-sub">del consumo real cubierto</div></div>`;
+    <div class="kpi">
+      <div class="kpi-label">Datos capturados</div>
+      <div class="kpi-val">${sucConDatosReales}<span style="font-size:14px;color:var(--gray-400)">/${SUCS.length}</span></div>
+      <div class="kpi-sub">${sucSinDatos>0?sucSinDatos+' pendientes':'Todas al día ✓'}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Semáforo del mes</div>
+      <div style="display:flex;gap:10px;margin-top:6px;align-items:center">
+        <span style="font-size:18px;font-weight:600;color:#1D9E75">${verde}</span><span style="font-size:12px;color:var(--gray-400)">verde</span>
+        <span style="font-size:18px;font-weight:600;color:#EF9F27">${amarillo}</span><span style="font-size:12px;color:var(--gray-400)">amarillo</span>
+        <span style="font-size:18px;font-weight:600;color:#E24B4A">${rojo}</span><span style="font-size:12px;color:var(--gray-400)">rojo</span>
+      </div>
+      <div class="kpi-sub">cobertura solar ${mesNombre}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Mejor cobertura</div>
+      <div class="kpi-val" style="color:var(--green-dark);font-size:18px">${mejorSuc?mejorEfic+'%':'—'}</div>
+      <div class="kpi-sub">${mejorSuc?mejorSuc.n:'Sin datos reales'}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Menor cobertura</div>
+      <div class="kpi-val" style="color:${peorSuc?eficColor(peorEfic):'var(--gray-400)'};font-size:18px">${peorSuc?peorEfic+'%':'—'}</div>
+      <div class="kpi-sub">${peorSuc&&peorSuc!==mejorSuc?peorSuc.n:peorSuc?peorSuc.n:'Sin datos reales'}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Pago CFE total</div>
+      <div class="kpi-val">${sucConDatosReales>0?fmtP(totP):'—'}</div>
+      <div class="kpi-sub">${sucConDatosReales} sucursales con datos</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Ahorro estimado</div>
+      <div class="kpi-val" style="color:var(--green-dark)">${sucConDatosReales>0?fmtP(totA):'—'}</div>
+      <div class="kpi-sub">${sucConDatosReales} sucursales con datos</div>
+    </div>
+    <div class="kpi" style="border-left:3px solid #1D9E75">
+      <div class="kpi-label">🌿 CO₂ evitado (mes)</div>
+      <div class="kpi-val" style="color:var(--green-dark)">${co2MesTon > 0 ? co2MesTon.toFixed(2)+' ton' : '—'}</div>
+      <div class="kpi-sub">${mesNombre} · ${sucConDatosReales} sucursales</div>
+    </div>
+    <div class="kpi" style="border-left:3px solid #1D9E75">
+      <div class="kpi-label">🌿 CO₂ evitado (año)</div>
+      <div class="kpi-val" style="color:var(--green-dark)">${co2AñoTon > 0 ? co2AñoTon.toFixed(2)+' ton' : '—'}</div>
+      <div class="kpi-sub">${año} · acumulado</div>
+    </div>`;
 
   document.getElementById('alertas').innerHTML = alertas.map(a=>
     `<div class="alert alert-${a.t}">${a.msg}</div>`).join('');
