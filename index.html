@@ -544,7 +544,12 @@ function renderAll(){
       <td>${fmtP(d.pago)}</td>
       <td class="hide-mobile">${fmtP(ahorro)}</td>
       <td class="hide-mobile">${cumplBadge}</td>
-      <td><div class="bar-wrap"><div class="bar-fill" style="width:${efic}%;background:${bc}"></div></div></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="bar-wrap" style="width:60px"><div class="bar-fill" style="width:${efic}%;background:${bc}"></div></div>
+          <span style="font-size:12px;font-weight:600;color:${bc}">${efic}%</span>
+        </div>
+      </td>
       <td>${eficBadge(efic)}</td>
     </tr>`;
   });
@@ -611,6 +616,11 @@ function renderAll(){
   });
   const co2AñoTon = (solarAñoTotal * FACTOR_CO2) / 1000;
 
+  // 1 árbol absorbe ~21 kg CO₂/año (EPA)
+  // Auto promedio emite ~0.192 kg CO₂/km (SEMARNAT)
+  const arboles    = Math.round((co2AñoTon * 1000) / 21);
+  const kmEvitados = Math.round((co2AñoTon * 1000) / 0.192);
+
   const ecT = eficColor(efT);
   document.getElementById('kpis').innerHTML = `
     <div class="kpi">
@@ -656,6 +666,16 @@ function renderAll(){
       <div class="kpi-label">🌿 CO₂ evitado (año)</div>
       <div class="kpi-val" style="color:var(--green-dark)">${co2AñoTon > 0 ? co2AñoTon.toFixed(2)+' ton' : '—'}</div>
       <div class="kpi-sub">${año} · acumulado</div>
+    </div>
+    <div class="kpi" style="border-left:3px solid #1D9E75">
+      <div class="kpi-label">🌳 Árboles equivalentes</div>
+      <div class="kpi-val" style="color:var(--green-dark)">${arboles > 0 ? arboles.toLocaleString('es-MX') : '—'}</div>
+      <div class="kpi-sub">árboles plantados · año</div>
+    </div>
+    <div class="kpi" style="border-left:3px solid #1D9E75">
+      <div class="kpi-label">🚗 km no recorridos</div>
+      <div class="kpi-val" style="color:var(--green-dark)">${kmEvitados > 0 ? (kmEvitados/1000).toFixed(1)+'k' : '—'}</div>
+      <div class="kpi-sub">km de auto · año</div>
     </div>`;
 
   document.getElementById('alertas').innerHTML = alertas.map(a=>
